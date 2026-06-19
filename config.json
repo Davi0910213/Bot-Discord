@@ -1,0 +1,10 @@
+{
+    "TOKEN": "SEU_TOKEN_AQUI",
+    "ID_CARGO_DONO": 123456789012345678,
+    "NOME_CATEGORIA_TICKETS": "Tickets VIP",
+    "NOME_CATEGORIA_COBRANCAS": "Cobranças VIP",
+    "CHAVE_PIX": "suachavepix@aqui.com",
+    "PRECO_PRATA": "R$ 15,00",
+    "PRECO_OURO": "R$ 30,00",
+    "PRECO_DIAMANTE": "R$ 50,00"
+}
