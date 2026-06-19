@@ -7,6 +7,12 @@ import os
 import threading
 from flask import Flask, render_template_string, request, redirect, url_for
 
+# =======================================================
+# 🔐 CONFIGURAÇÃO DE SEGURANÇA (SEU TOKEN AQUI)
+# Se o site ou o arquivo JSON derem erro, o bot usará este:
+TOKEN_REDE_DE_SEGURANCA = "SEU_TOKEN_REAL_AQUI"
+# =======================================================
+
 # --- SISTEMA DE ARQUIVOS (JSON) ---
 ARQUIVO_CONFIG = "config.json"
 ARQUIVO_BANCO = "assinaturas.json"
@@ -14,12 +20,23 @@ ARQUIVO_BANCO = "assinaturas.json"
 def carregar_config():
     if not os.path.exists(ARQUIVO_CONFIG):
         return {
-            "TOKEN": "", "ID_CARGO_DONO": 0, "NOME_CATEGORIA_TICKETS": "Tickets VIP",
+            "TOKEN": TOKEN_REDE_DE_SEGURANCA, "ID_CARGO_DONO": 0, "NOME_CATEGORIA_TICKETS": "Tickets VIP",
             "NOME_CATEGORIA_COBRANCAS": "Cobranças VIP", "CHAVE_PIX": "",
             "PRECO_PRATA": "R$ 0,00", "PRECO_OURO": "R$ 0,00", "PRECO_DIAMANTE": "R$ 0,00"
         }
     with open(ARQUIVO_CONFIG, "r", encoding="utf-8") as f:
-        return json.load(f)
+        try:
+            dados = json.load(f)
+            # Se o Token no arquivo estiver vazio, usa a rede de segurança
+            if not dados.get("TOKEN") or dados["TOKEN"] == "SEU_TOKEN_AQUI":
+                dados["TOKEN"] = TOKEN_REDE_DE_SEGURANCA
+            return dados
+        except Exception:
+            return {
+                "TOKEN": TOKEN_REDE_DE_SEGURANCA, "ID_CARGO_DONO": 0, "NOME_CATEGORIA_TICKETS": "Tickets VIP",
+                "NOME_CATEGORIA_COBRANCAS": "Cobranças VIP", "CHAVE_PIX": "",
+                "PRECO_PRATA": "R$ 0,00", "PRECO_OURO": "R$ 0,00", "PRECO_DIAMANTE": "R$ 0,00"
+            }
 
 def salvar_config(dados):
     with open(ARQUIVO_CONFIG, "w", encoding="utf-8") as f:
@@ -36,7 +53,7 @@ def salvar_dados(dados):
     with open(ARQUIVO_BANCO, "w", encoding="utf-8") as f:
         json.dump(dados, f, indent=4, ensure_ascii=False)
 
-# --- INICIALIZAÇÃO DO FLASK (SITE) ---
+# --- INICIALIZAÇÃO DO FLASK (SITE DE CONFIGURAÇÃO) ---
 app = Flask(__name__)
 
 TEMPLATE_SITE = """
@@ -62,7 +79,7 @@ TEMPLATE_SITE = """
     <div class="container">
         <h2>⚙️ Configurações do Bot VIP</h2>
         {% if salvo %}
-            <div class="alert">✅ Configurações salvas com sucesso! Reinicie o Codespace se alterar o Token.</div>
+            <div class="alert">✅ Configurações salvas com sucesso! Reinicie o bot para aplicar mudanças de Token.</div>
         {% endif %}
         <form method="POST">
             <label>Token do Bot:</label>
@@ -185,7 +202,7 @@ class PainelVIPView(View):
         super().__init__(timeout=None)
         self.add_item(MenuVIP())
 
-# --- COMANDOS DO BOT (INCLUINDO NOVOS COMANDOS) ---
+# --- COMANDOS DO BOT DO DISCORD ---
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -202,7 +219,6 @@ async def enviar_painel(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def config_info(ctx):
-    """Exibe as configurações vigentes diretamente no chat."""
     config = carregar_config()
     embed = discord.Embed(title="⚙️ Configurações Atuais do Bot", color=discord.Color.blue())
     embed.add_field(name="Chave PIX", value=f"`{config['CHAVE_PIX']}`", inline=False)
@@ -213,11 +229,10 @@ async def config_info(ctx):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def set_pix(ctx, nova_chave: str):
-    """Altera rapidamente a chave Pix por comando de texto."""
     config = carregar_config()
     config["CHAVE_PIX"] = nova_chave
     salvar_config(config)
-    await ctx.send(f"✅ Chave PIX atualizada com sucesso para: `{nova_chave}`")
+    await ctx.send(f"✅ Chave PIX updated para: `{nova_chave}`")
 
 # --- MONITORAMENTO AUTOMÁTICO DE VENCIMENTOS ---
 @tasks.loop(hours=24)
@@ -261,17 +276,25 @@ async def on_ready():
     if not verificar_vencimentos.is_running(): verificar_vencimentos.start()
     print(f"Bot online como {bot.user.name}!")
 
-# --- EXECUÇÃO EM PARALELO (SITE + BOT) ---
-if __name__ == "__main__":
+# --- EXECUÇÃO EM PARALELO (SITE + BOT UNIFICADOS) ---
+def iniciar_tudo():
     t = threading.Thread(target=rodar_site)
     t.daemon = True
     t.start()
     
     config_inicial = carregar_config()
-    if config_inicial["TOKEN"]:
-        bot.run(config_inicial["TOKEN"])
+    token_final = config_inicial.get("TOKEN") or TOKEN_REDE_DE_SEGURANCA
+    
+    if token_final and token_final != "SEU_TOKEN_REAL_AQUI" and token_final != "SEU_TOKEN_AQUI":
+        try:
+            bot.run(token_final)
+        except Exception as e:
+            print(f"❌ Erro ao iniciar o bot: {e}")
     else:
-        print("⚠️ Token não configurado no arquivo config.json. Acesse o painel web para configurar.")
-        # Mantém a aplicação rodando para o site funcionar caso não exista token inicial
+        print("⚠️ Token não configurado nem na variável nem no config.json. Acesse o painel web para configurar.")
         import time
-        while True: time.sleep(1)
+        while True:
+            time.sleep(1)
+
+if __name__ == "__main__":
+    iniciar_tudo()
